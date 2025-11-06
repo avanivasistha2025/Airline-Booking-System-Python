@@ -9,6 +9,7 @@ db_file = 'airline_database.db'
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+
 # --- Database Connection ---
 def create_connection():
     conn = None
