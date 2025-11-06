@@ -1,0 +1,280 @@
+import sqlite3
+import hashlib
+from datetime import datetime
+
+# --- Configuration ---
+db_file = 'airline_database.db'
+
+# --- Hashing Function ---
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# --- Database Connection ---
+def create_connection():
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+        conn.row_factory = sqlite3.Row
+    except sqlite3.Error as e:
+        print(e)
+    return conn
+
+# --- User Account Functions ---
+def create_account(conn):
+    print("\n--- Create a New Account ---")
+    try:
+        first_name = input("Enter your first name: ")
+        last_name = input("Enter your last name: ")
+        email = input("Enter your email: ")
+        password = input("Create a password: ")
+        password_hash = hash_password(password)
+        cursor = conn.cursor()
+        query = "INSERT INTO users (FirstName, LastName, Email, PasswordHash) VALUES (?, ?, ?, ?)"
+        cursor.execute(query, (first_name, last_name, email, password_hash))
+        conn.commit()
+        print(f"\n✅ Account created successfully for {first_name}! Please log in.")
+    except sqlite3.IntegrityError:
+        print("\n❌ Error: An account with this email already exists.")
+    except Exception as e:
+        print(f"\n❌ An error occurred: {e}")
+
+def login(conn):
+    print("\n--- Log In ---")
+    try:
+        email = input("Enter your email: ")
+        password = input("Enter your password: ")
+        password_hash = hash_password(password)
+        cursor = conn.cursor()
+        query = "SELECT UserID, FirstName FROM users WHERE Email = ? AND PasswordHash = ?"
+        cursor.execute(query, (email, password_hash))
+        user = cursor.fetchone()
+        if user:
+            print(f"\nWelcome back, {user['FirstName']}!")
+            return dict(user) # Return as a dictionary to allow modifications
+        else:
+            print("\n❌ Invalid email or password.")
+            return None
+    except Exception as e:
+        print(f"\n❌ An error occurred: {e}")
+        return None
+
+def update_account(conn, current_user):
+    if not current_user:
+        print("\n❌ You must be logged in to update your account information.")
+        return current_user
+
+    print("\n--- Update Account Information ---")
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE UserID = ?", (current_user['UserID'],))
+        user_data = cursor.fetchone()
+
+        if not user_data:
+            print("\n❌ User not found.")
+            return current_user
+
+        print("\nLeave a field blank and press Enter if you don’t want to change it.")
+        new_first_name = input(f"First Name [{user_data['FirstName']}]: ") or user_data['FirstName']
+        new_last_name = input(f"Last Name [{user_data['LastName']}]: ") or user_data['LastName']
+        new_email = input(f"Email [{user_data['Email']}]: ") or user_data['Email']
+        
+        new_password_hash = user_data['PasswordHash']
+        change_password = input("Do you want to change your password? (y/n): ").lower()
+        if change_password == 'y':
+            new_password = input("Enter new password: ")
+            if new_password:
+                new_password_hash = hash_password(new_password)
+
+        cursor.execute("""
+            UPDATE users
+            SET FirstName = ?, LastName = ?, Email = ?, PasswordHash = ?
+            WHERE UserID = ?
+        """, (new_first_name, new_last_name, new_email, new_password_hash, current_user['UserID']))
+
+        conn.commit()
+        print("\n✅ Account information updated successfully!")
+        
+        current_user['FirstName'] = new_first_name
+        return current_user
+
+    except sqlite3.IntegrityError:
+        print("\n❌ This email is already in use by another account.")
+        return current_user
+    except sqlite3.Error as e:
+        print(f"\n❌ A database error occurred: {e}")
+        conn.rollback()
+        return current_user
+
+# --- Flight Functions (MODIFIED FOR NEW DATASET) ---
+def view_flights(conn):
+    try:
+        print("\n--- Search for Flights ---")
+        departure = input("Enter departure airport code (e.g., BLR): ").upper()
+        destination = input("Enter arrival airport code (e.g., DEL): ").upper()
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM flights WHERE DepartureAirportCode = ? AND ArrivalAirportCode = ?"
+        cursor.execute(query, (departure, destination))
+        rows = cursor.fetchall()
+        
+        if not rows:
+            print("\nSorry, no flights found for that route.")
+        else:
+            print(f"\n--- Available Flights from {departure} to {destination} ---")
+            for row in rows:
+                print(f"Flight ID: {row['FlightID']}, Airline: {row['AirlineID']}, Route: {row['Route']}, "
+                      f"Departs: {row['DepartureTime']}, Price: {row['Price']}")
+            print("--------------------------------------------------")
+        return rows
+
+    except sqlite3.Error as e:
+        print(f"\n❌ A database error occurred: {e}")
+    return None
+
+# --- Booking Functions (MODIFIED FOR NEW DATASET) ---
+def book_ticket(conn, current_user):
+    if not current_user:
+        print("\n❌ You must be logged in to book a ticket.")
+        return
+
+    print("\n--- Book a Plane Ticket ---")
+    available_flights = view_flights(conn)
+    if not available_flights:
+        return
+
+    try:
+        flight_id_to_book = input("Enter the Flight ID you wish to book (e.g., 6E 812): ").upper()
+        
+        flight_exists = False
+        for flight in available_flights:
+            if flight['FlightID'].upper() == flight_id_to_book:
+                flight_exists = True
+                break
+        
+        if not flight_exists:
+            print("\n❌ Invalid Flight ID. Please choose an ID from the list shown above.")
+            return
+
+        num_seats = int(input("How many seats would you like to book? (1): ") or "1")
+        
+        user_id = current_user['UserID']
+        booking_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        status = "Confirmed"
+        
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO bookings (UserID, FlightID, BookingDate, NumberOfSeats, Status)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, flight_id_to_book, booking_date, num_seats, status))
+        
+        conn.commit()
+        print(f"\n✅ Booking confirmed! You have successfully booked {num_seats} seat(s) on flight {flight_id_to_book}.")
+
+    except ValueError:
+        print("\n❌ Invalid input. Please enter a number for the seat count.")
+    except sqlite3.Error as e:
+        print(f"\n❌ A database error occurred: {e}")
+        conn.rollback()
+
+def view_my_bookings(conn, current_user):
+    if not current_user:
+        print("\n❌ You must be logged in to view your bookings.")
+        return
+    print(f"\n--- Bookings for {current_user['FirstName']} ---")
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT
+                b.BookingID, b.NumberOfSeats, b.Status,
+                f.FlightID, f.AirlineID, f.Route, f.DepartureTime, f.Price
+            FROM bookings b
+            JOIN flights f ON b.FlightID = f.FlightID
+            WHERE b.UserID = ?
+        """
+        cursor.execute(query, (current_user['UserID'],))
+        bookings = cursor.fetchall()
+        if not bookings:
+            print("You have no bookings.")
+        else:
+            for booking in bookings:
+                print(f"Booking ID: {booking['BookingID']}, Flight: {booking['FlightID']}, Airline: {booking['AirlineID']}, Route: {booking['Route']}")
+                print(f"  Seats: {booking['NumberOfSeats']}, Status: {booking['Status']}, Departs: {booking['DepartureTime']}")
+                print("-" * 20)
+        return bookings
+    except sqlite3.Error as e:
+        print(f"\n❌ A database error occurred: {e}")
+
+def cancel_booking(conn, current_user):
+    if not current_user:
+        print("\n❌ You must be logged in to cancel a booking.")
+        return
+    print("\n--- Cancel a Booking ---")
+    bookings = view_my_bookings(conn, current_user)
+    if not bookings:
+        return
+    try:
+        booking_id_to_cancel = int(input("Enter the Booking ID you wish to cancel: "))
+        cursor = conn.cursor()
+        # No need to add seats back since the new dataset doesn't track it
+        cursor.execute("UPDATE bookings SET Status = 'Cancelled' WHERE BookingID = ? AND UserID = ?", (booking_id_to_cancel, current_user['UserID']))
+        conn.commit()
+        if cursor.rowcount > 0:
+            print(f"\n✅ Booking ID {booking_id_to_cancel} has been successfully cancelled.")
+        else:
+            print("\n❌ Invalid Booking ID or booking does not belong to you.")
+    except ValueError:
+        print("\n❌ Invalid input. Please enter a valid Booking ID number.")
+    except sqlite3.Error as e:
+        print(f"\n❌ A database error occurred: {e}")
+        conn.rollback()
+
+# --- Main Application Logic ---
+def main():
+    conn = create_connection()
+    current_user = None
+    if conn is not None:
+        while True:
+            print("\n===== Airline Booking System =====")
+            if current_user:
+                print(f"Logged in as: {current_user['FirstName']}")
+            print("1. Log in / Create Account")
+            print("2. View All Bookable Flights")
+            print("3. Book a Ticket")
+            print("4. View My Bookings")
+            print("5. Cancel a Flight")
+            print("6. Update My Account")
+            print("7. Exit")
+            print("====================================")
+            choice = input("Please enter your choice (1-7): ")
+            if choice == '1':
+                if current_user:
+                    print("\nYou are already logged in.")
+                else:
+                    print("\na) Log In\nb) Create Account")
+                    sub_choice = input("Select an option: ").lower()
+                    if sub_choice == 'a':
+                        current_user = login(conn)
+                    elif sub_choice == 'b':
+                        create_account(conn)
+            elif choice == '2':
+                view_flights(conn)
+            elif choice == '3':
+                book_ticket(conn, current_user)
+            elif choice == '4':
+                view_my_bookings(conn, current_user)
+            elif choice == '5':
+                cancel_booking(conn, current_user)
+            elif choice == '6':
+                current_user = update_account(conn, current_user)
+            elif choice == '7':
+                print("\nThank you for using the Airline Booking System. Goodbye!")
+                break
+            else:
+                print("\nInvalid choice.")
+        conn.close()
+    else:
+        print("Error! Cannot create the database connection.")
+
+if __name__ == '__main__':
+    main()
+
