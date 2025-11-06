@@ -1,0 +1,204 @@
+user = {}
+bookings = []
+current_user = None 
+
+import random
+import string
+
+def create():
+    number = int(input("User Number: "))
+    name = input("Name: ")
+    age = int(input("Age: "))
+    gmail = input("Gmail: ")
+    user[number] = [name, age, gmail, []]
+    print("---Account created successfully!---")
+
+def login():
+    global current_user
+    num = int(input("Enter Number: "))
+    if num in user:
+        current_user = num
+        print("----- Welcome Back! -----")
+        print(f"Name: {user[num][0]}, Age: {user[num][1]}, Gmail: {user[num][2]}")
+        if user[num][3]:
+            print("--- Your Bookings ---")
+            for pnr in user[num][3]:
+                for b in bookings:
+                    if b[0] == pnr:
+                        print(f"PNR: {b[0]} | Flight ID: {b[1]} | Seats: {b[2]}")
+            print("-" * 40 + "\n")
+        else:
+            print("You have no bookings yet.")
+    else:
+        print("Please create an account first.")
+
+airplane = {
+    "6E299": ["IndiGo", "Bangalore", "Chennai", "08:30", "09:30", "06/11/2025"],
+    "AI405": ["Air India", "Delhi", "Mumbai", "10:00", "12:15", "06/11/2025"],
+    "AI676": ["Air India", "Kolkata", "Hyderabad", "14:00", "16:10", "07/11/2025"],
+    "9W319": ["Jet Airways", "Pune", "Delhi", "06:45", "08:55", "07/11/2025"],
+    "9W728": ["Jet Airways", "Mumbai", "Goa", "11:30", "12:45", "08/11/2025"],
+    "9W231": ["Jet Airways", "Delhi", "Mumbai", "02:00", "04:30", "06/11/2025"],
+    "I5777": ["IndiGo", "Hyderabad", "Bangalore", "19:15", "20:30", "07/11/2025"],
+    "I5140": ["IndiGo", "Chennai", "Bangalore", "21:50", "23:10", "08/11/2025"],
+    "I5352": ["IndiGo", "Mumbai", "Goa", "00:50", "02:55", "06/11/2025"],
+    "UK830": ["Vistara", "Kolkata", "Hyderabad", "18:40", "20:50", "07/11/2025"],
+    "UK994": ["Vistara", "Pune", "Delhi", "03:50", "05:40", "08/11/2025"],
+    "UK702": ["Vistara", "Goa", "Mumbai", "16:20", "18:30", "06/11/2025"]
+}
+
+def booking():
+    if current_user is None:
+        print("⚠️ Please login first before booking.\n")
+        return
+
+    starting = input("Please enter your Starting point: ").capitalize()
+    ending = input("Please enter your Ending point: ").capitalize()
+
+    found = False
+    print("Available Flights:")
+
+    for k, v in airplane.items():
+        if v[1] == starting and v[2] == ending:
+            print(f"Flight ID: {k}")
+            print(f"Airline  : {v[0]}")
+            print(f"From     : {v[1]}")
+            print(f"To       : {v[2]}")
+            print(f"Departure: {v[3]}")
+            print(f"Arrival  : {v[4]}")
+            print(f"Date     : {v[5]}")
+            print("-" * 40)
+            found = True
+
+    if not found:
+        print("No flights found for the given route.")
+        return
+
+    book = input("Enter flight ID of the flight to book: ").strip().upper()
+    seats = input("Enter number of seats: ")
+
+    pnr = str(random.randint(1000, 9999)) + random.choice(string.ascii_uppercase)
+    bookings.append([pnr, book, seats])
+    user[current_user][3].append(pnr)
+
+    print("--- Seat(s) booked successfully! ---")
+    print("PNR Number:", pnr)
+
+def viewbookings():
+    pnrnum = input("Enter PNR number: ")
+    found = False
+
+    for booking in bookings:
+        if booking[0] == pnrnum:
+            print("--- Booking Details ---")
+            print("PNR Number:", booking[0])
+            print("Flight ID :", booking[1])
+            print("Seats     :", booking[2])
+            found = True
+            break
+
+    if not found:
+        print("No booking found with that PNR number.")
+
+def deletion():
+    pnum = input("Enter PNR number: ")
+    found = False
+    for booking in bookings:
+        if booking[0] == pnum:
+            print("--- Booking Details ---")
+            print("PNR Number:", booking[0])
+            print("Flight ID :", booking[1])
+            print("Seats     :", booking[2])
+            found = True
+            ch = input("Are you sure you want to cancel your booking? (y/n): ").lower()
+            if ch == "y":
+                print("Booking Cancelled Successfully!")
+                bookings.remove(booking)
+      
+                for num, info in user.items():
+                    if pnum in info[3]:
+                        info[3].remove(pnum)
+                break
+            elif ch == "n":
+                print("Booking NOT Cancelled")
+                break
+    if not found:
+        print("No booking found with that PNR number.")
+
+
+
+def change_login():
+    if current_user is None:
+        print("Please login first to update your details.")
+        return
+    print("Current details:")
+    print(f"Name: {user[current_user][0]}, Age: {user[current_user][1]}, Gmail: {user[current_user][2]}")
+    name = input("Enter new name : ")
+    age = input("Enter new age : ")
+    gmail = input("Enter new gmail: ")
+
+    if name:
+        user[current_user][0] = name
+    if age:
+        user[current_user][1] = int(age)
+    if gmail:
+        user[current_user][2] = gmail
+    print("User info updated successfully.")
+    
+def update_booking():
+    pnrnum = input("Enter PNR number to update: ").strip()
+    for b in bookings:
+        if b[0] == pnrnum:
+            print("1. Change flight")
+            print("2. Change number of seats")
+            print("3. Change both")
+            choice = input("Enter choice: ").strip()
+            if choice == "1":
+                new_flight = input("Enter new flight ID: ").upper()
+                b[1] = new_flight
+            elif choice == "2":
+                new_seats = input("Enter new number of seats: ")
+                b[2] = new_seats
+            elif choice == "3":
+                new_flight = input("Enter new flight ID: ").upper()
+                new_seats = input("Enter new number of seats: ")
+                b[1] = new_flight
+                b[2] = new_seats
+            print("Booking updated successfully.")
+            return
+    print("No booking found with that PNR number.")
+
+def menu():
+    while True:
+        print("==== MENU ====")
+        print("1. Create Account")
+        print("2. Login")
+        print("3. Booking")
+        print("4. View Bookings")
+        print("5. Cancellation of Booking")
+        print("6. Updating User Info")
+        print("7. Updating Bookings")
+        print("8. Exit")
+        choice = int(input("Enter choice (1–8): "))
+
+        if choice == 1:
+            create()
+        elif choice == 2:
+            login()
+        elif choice == 3:
+            booking()
+        elif choice == 4:
+            viewbookings()
+        elif choice == 5:
+            deletion()
+        elif choice == 6:
+            change_login()
+        elif choice == 7:
+            update_booking()
+        elif choice == 8:
+            print("Exiting program. Goodbye!")
+            break
+        else:
+            print("Invalid choice, please try again.")
+
+menu()
