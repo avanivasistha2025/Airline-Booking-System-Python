@@ -1,0 +1,60 @@
+import pandas as pd
+import sqlite3
+import os
+
+# --- Configuration: Change these values to match your files ---
+
+# The name of your Excel file.
+# Make sure it's in the same folder as this script.
+excel_file = 'Dataset new.xlsx' 
+
+# The name of the sheet inside your Excel file.
+sheet_name = 'Sheet1' 
+
+# The name for the new SQLite database file that will be created.
+db_file = 'airline_database.db' 
+
+# The name for the table that will hold your data inside the database.
+table_name = 'flights' 
+
+# --- End of Configuration ---
+
+# Get the absolute path to the directory where the script is located
+script_dir = os.path.dirname(__file__)
+excel_path = os.path.join(script_dir, excel_file)
+db_path = os.path.join(script_dir, db_file)
+
+print("--- Starting Data Import ---")
+
+try:
+    # 1. Read the data from the Excel file
+    print(f"Reading data from '{excel_path}'...")
+    df = pd.read_excel(excel_path, sheet_name=sheet_name)
+    print("✅ Excel file read successfully.")
+    print(f"Found {len(df)} rows of data.")
+
+    # 2. Connect to the SQLite database
+    conn = sqlite3.connect(db_path)
+    print(f"Connecting to SQLite database '{db_path}'...")
+
+    # 3. Write the data into the database table
+    # if_exists='replace' will create a new table every time you run the script.
+    # Use 'append' if you want to add data to an existing table.
+    print(f"Writing data to table '{table_name}'...")
+    df.to_sql(table_name, conn, if_exists='replace', index=False)
+    print("✅ Data imported successfully into the database!")
+
+except FileNotFoundError:
+    print(f"❌ ERROR: The file '{excel_file}' was not found.")
+    print("Please make sure the file name is correct and it is in the same folder as the script.")
+except Exception as e:
+    print(f"❌ An error occurred: {e}")
+
+finally:
+    # 4. Close the connection to the database
+    if 'conn' in locals() and conn:
+        conn.close()
+        print("Database connection closed.")
+
+print("--- Data Import Script Finished ---")
+
