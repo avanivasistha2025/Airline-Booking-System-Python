@@ -1,0 +1,64 @@
+# setup_database.py
+import sqlite3
+
+db_file = 'airline_database.db'
+
+print(f"--- Setting up database: {db_file} ---")
+
+try:
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # Create the 'users' table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        UserID INTEGER PRIMARY KEY AUTOINCREMENT,
+        FirstName TEXT NOT NULL,
+        LastName TEXT NOT NULL,
+        Email TEXT NOT NULL UNIQUE,
+        PhoneNumber TEXT,
+        PasswordHash TEXT NOT NULL
+    );
+    """)
+    print("✅ 'users' table checked/created successfully.")
+
+    # Create the 'flights' table to match the new dataset
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS flights (
+        FlightID TEXT,
+        AirlineID TEXT,
+        Date_of_Journey TEXT,
+        DepartureAirportCode TEXT,
+        ArrivalAirportCode TEXT,
+        Route TEXT,
+        DepartureTime TEXT,
+        ArrivalTime TEXT,
+        Duration TEXT,
+        Price INTEGER
+    );
+    """)
+    print("✅ 'flights' table checked/created successfully.")
+
+    # Create the 'bookings' table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS bookings (
+        BookingID INTEGER PRIMARY KEY AUTOINCREMENT,
+        UserID INTEGER NOT NULL,
+        FlightID TEXT NOT NULL,
+        BookingDate TEXT NOT NULL,
+        NumberOfSeats INTEGER NOT NULL,
+        Status TEXT NOT NULL,
+        FOREIGN KEY (UserID) REFERENCES users (UserID)
+    );
+    """)
+    print("✅ 'bookings' table checked/created successfully.")
+
+    conn.commit()
+    print("--- Database setup complete! ---")
+
+except sqlite3.Error as e:
+    print(f"❌ Database error: {e}")
+finally:
+    if conn:
+        conn.close()
+
